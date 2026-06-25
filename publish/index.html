@@ -330,11 +330,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
     </div>
     <div class="att-section">
       <div class="att-label">出勤時刻</div>
-      <input id="attClockIn" class="att-input" type="time">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="attClockIn" class="att-input" type="time" style="flex:1" oninput="updateWorkHours()">
+        <button onclick="setNow('attClockIn')" style="white-space:nowrap;padding:8px 12px;border:1.5px solid var(--blue);border-radius:8px;background:#fff;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer">現在時刻</button>
+      </div>
     </div>
     <div class="att-section">
       <div class="att-label">退勤時刻</div>
-      <input id="attClockOut" class="att-input" type="time" oninput="updateWorkHours()">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="attClockOut" class="att-input" type="time" style="flex:1" oninput="updateWorkHours()">
+        <button onclick="setNow('attClockOut')" style="white-space:nowrap;padding:8px 12px;border:1.5px solid var(--blue);border-radius:8px;background:#fff;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer">現在時刻</button>
+      </div>
     </div>
     <div class="att-section">
       <div class="att-label">休憩時間（分）</div>
@@ -1009,6 +1015,14 @@ function submitReport() {
 }
 
 // ===== 勤務時間計算 =====
+function setNow(fieldId) {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(Math.floor(now.getMinutes() / 10) * 10).padStart(2, '0');
+  document.getElementById(fieldId).value = h + ':' + m;
+  updateWorkHours();
+}
+
 function calcWorkMin(clockIn, clockOut, breakMin) {
   if (!clockIn || !clockOut) return null;
   const [ih, im] = clockIn.split(':').map(Number);
