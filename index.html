@@ -323,7 +323,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
     <button class="back-btn" onclick="goTo('homeScreen')">←</button>
     <span id="attTitle">出退勤記録</span>
   </div>
-  <div class="card">
+  <!-- 出勤パネル -->
+  <div class="card" id="clockInPanel">
+    <div style="text-align:center;font-size:13px;color:#888;margin-bottom:8px">出勤時刻を記録します</div>
     <div class="att-section">
       <div class="att-label">日付</div>
       <input id="attDate" class="att-input" type="date">
@@ -331,10 +333,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
     <div class="att-section">
       <div class="att-label">出勤時刻</div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input id="attClockIn" class="att-input" type="time" style="flex:1" oninput="updateWorkHours()">
+        <input id="attClockIn" class="att-input" type="time" style="flex:1">
         <button onclick="setNow('attClockIn')" style="white-space:nowrap;padding:8px 12px;border:1.5px solid var(--blue);border-radius:8px;background:#fff;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer">現在時刻</button>
       </div>
     </div>
+    <button class="btn-submit" style="background:#43a047" onclick="submitClockIn()">出勤する</button>
+    <div id="clockInStatus" style="text-align:center;font-size:13px;margin-top:10px"></div>
+  </div>
+  <!-- 退勤パネル -->
+  <div class="card" id="clockOutPanel" style="display:none">
+    <div id="clockInInfo" style="text-align:center;background:#e8f4fd;border-radius:10px;padding:10px;margin-bottom:8px;font-size:14px;color:#333"></div>
     <div class="att-section">
       <div class="att-label">退勤時刻</div>
       <div style="display:flex;gap:8px;align-items:center">
@@ -350,8 +358,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
       <div style="font-size:11px;color:#888;margin-bottom:2px">本日の勤務時間</div>
       <div id="attWorkHoursVal" style="font-size:22px;font-weight:800;color:var(--blue)"></div>
     </div>
-    <button class="btn-submit" onclick="submitAttendance()">送信する</button>
-    <div id="attStatus" style="text-align:center;font-size:13px;margin-top:10px"></div>
+    <button class="btn-submit" onclick="submitClockOut()">退勤する</button>
+    <div id="clockOutStatus" style="text-align:center;font-size:13px;margin-top:10px"></div>
   </div>
 </div>
 
@@ -923,36 +931,87 @@ function updateUserUI() {
 
 function openAttendance() {
   const now = new Date();
-  const p = n => String(n).padStart(2,'0');
-  document.getElementById('attDate').value = `${now.getFullYear()}-${p(now.getMonth()+1)}-${p(now.getDate())}`;
-  document.getElementById('attClockIn').value = `${p(now.getHours())}:${p(now.getMinutes())}`;
+  const pad = n => String(n).padStart(2,'0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const savedKey = 'clockIn_' + currentUser;
+  const saved = JSON.parse(localStorage.getItem(savedKey) || 'null');
+
+  document.getElementById('attDate').value = today;
   document.getElementById('attClockOut').value = '';
   document.getElementById('attBreak').value = '';
-  document.getElementById('attStatus').textContent = '';
+  document.getElementById('clockInStatus').textContent = '';
+  document.getElementById('clockOutStatus').textContent = '';
   updateUserUI();
+
+  if (saved && saved.date === today) {
+    // すでに出勤済み → 退勤パネル表示
+    document.getElementById('attClockIn').value = saved.clockIn;
+    document.getElementById('clockInInfo').textContent = `出勤時刻：${saved.clockIn}`;
+    document.getElementById('clockInPanel').style.display = 'none';
+    document.getElementById('clockOutPanel').style.display = '';
+  } else {
+    // 未出勤 → 出勤パネル表示
+    document.getElementById('attClockIn').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    document.getElementById('clockInPanel').style.display = '';
+    document.getElementById('clockOutPanel').style.display = 'none';
+  }
   goTo('attendanceScreen');
 }
 
-function submitAttendance() {
+function submitClockIn() {
   if (!currentUser) { alert('担当者を選択してください'); return; }
-  const status = document.getElementById('attStatus');
-  const record = {
-    date:     document.getElementById('attDate').value,
-    clockIn:  document.getElementById('attClockIn').value,
-    clockOut: document.getElementById('attClockOut').value,
-    breakMin: document.getElementById('attBreak').value
-  };
+  const date = document.getElementById('attDate').value;
+  const clockIn = document.getElementById('attClockIn').value;
+  if (!date || !clockIn) { alert('日付と出勤時刻を入力してください'); return; }
+  const status = document.getElementById('clockInStatus');
+
+  // localStorageに出勤時刻を保存
+  const savedKey = 'clockIn_' + currentUser;
+  localStorage.setItem(savedKey, JSON.stringify({ date, clockIn }));
+
+  status.textContent = '✅ 出勤時刻を記録しました';
+  status.style.color = '#43a047';
+
+  // 退勤パネルへ切り替え
+  setTimeout(() => {
+    document.getElementById('clockInInfo').textContent = `出勤時刻：${clockIn}`;
+    document.getElementById('attClockOut').value = '';
+    document.getElementById('attBreak').value = '';
+    document.getElementById('clockOutStatus').textContent = '';
+    document.getElementById('clockInPanel').style.display = 'none';
+    document.getElementById('clockOutPanel').style.display = '';
+  }, 800);
+}
+
+function submitClockOut() {
+  if (!currentUser) { alert('担当者を選択してください'); return; }
+  const savedKey = 'clockIn_' + currentUser;
+  const saved = JSON.parse(localStorage.getItem(savedKey) || 'null');
+  if (!saved) { alert('出勤時刻が記録されていません'); return; }
+
+  const clockOut = document.getElementById('attClockOut').value;
+  const breakMin = document.getElementById('attBreak').value;
+  if (!clockOut) { alert('退勤時刻を入力してください'); return; }
+
+  const record = { date: saved.date, clockIn: saved.clockIn, clockOut, breakMin };
   const workMins = calcWorkMin(record.clockIn, record.clockOut, record.breakMin);
   record.workHours = workMins ? Math.floor(workMins/60) + '時間' + (workMins%60) + '分' : '';
+
+  // アプリ内履歴に保存
   const key = 'att_' + currentUser;
   const arr = JSON.parse(localStorage.getItem(key) || '[]');
   arr.push(record);
   localStorage.setItem(key, JSON.stringify(arr));
+
+  // 出勤一時保存を削除
+  localStorage.removeItem(savedKey);
+
+  const status = document.getElementById('clockOutStatus');
   status.textContent = '送信中...';
   status.style.color = '#888';
-  const p = new URLSearchParams(record);
-  fetch(GAS_URL + '?' + p.toString() + '&type=att&user=' + currentUser, { mode: 'no-cors' })
-    .then(() => { status.textContent = '✅ 送信しました'; status.style.color = '#43a047'; })
+  const params = new URLSearchParams(record);
+  fetch(GAS_URL + '?' + params.toString() + '&type=att&user=' + currentUser, { mode: 'no-cors' })
+    .then(() => { status.textContent = '✅ 退勤を記録しました'; status.style.color = '#43a047'; })
     .catch(() => { status.textContent = '✅ 保存しました（オフライン）'; status.style.color = '#43a047'; });
 }
 
