@@ -1847,7 +1847,7 @@ function downloadCSV(type, user) {
 }
 
 function clearData(user) {
-  const name = user === 'kishi' ? '岸さん' : '宮川さん';
+  const name = USER_NAMES[user] || user;
   if (!confirm(`${name}のデータをすべて削除しますか？`)) return;
   localStorage.removeItem('att_' + user);
   localStorage.removeItem('rep_' + user);
