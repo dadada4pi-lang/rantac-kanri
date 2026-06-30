@@ -634,7 +634,13 @@ function openFacilityDetail(idx) {
     ['TEL', f.tel ? `<a href="tel:${f.tel}" style="color:var(--blue);font-weight:700">${f.tel}</a>` : ''],
     ['住所', f.a ? `<a href="https://maps.google.com/?q=${encodeURIComponent(f.a)}" target="_blank" style="color:var(--blue)">${f.a}</a>` : ''],
     ['納品可能日', f.delivery||''],
-    ['休診日', f.cn || ((f.cd&&f.cd.length)?f.cd.map(i=>['日','月','火','水','木','金','土'][i]+'曜').join('・')+'休診':'')],
+    ['休診日', (()=>{
+      const cn = f.cn||'';
+      const dayNames = (f.cd&&f.cd.length)?f.cd.map(i=>['日','月','火','水','木','金','土'][i]+'曜'):[];
+      const missing = dayNames.filter(d=>!cn.includes(d));
+      const dayText = missing.length ? missing.join('・')+'休診' : '';
+      return [dayText, cn].filter(Boolean).join(' / ');
+    })()],
     ['ランク', f.rank||''],
     ['谷本引き継ぎ', (f.tanomoto||'').trim()],
   ];
