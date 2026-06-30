@@ -1128,23 +1128,31 @@ function calcETAs(route){
   const depInput=document.getElementById('departureTime');
   const now=new Date();
   const depStr=depInput&&depInput.value?depInput.value:`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  let [h,m]=depStr.split(':').map(Number);
+  let [h0,m0]=depStr.split(':').map(Number);
+  let totalMin=h0*60+m0;
   let cur=window.gpsPos||null;
   const SPEED_KMH=25, STOP_MIN=10;
   let hasGPS=!!cur;
+  const mkResult=()=>{
+    const days=Math.floor(totalMin/1440);
+    const tod=((totalMin%1440)+1440)%1440;
+    const hh=String(Math.floor(tod/60)).padStart(2,'0');
+    const mm=String(tod%60).padStart(2,'0');
+    return {text:`${days>0?`+${days}日`:''}${hh}:${mm}`, tod:`${hh}:${mm}`, overflow:days>0};
+  };
   return route.map((f,i)=>{
-    let eta=null;
+    let result=null;
     if(cur&&f.lat&&f.lng){
       const km=distKm(cur,f);
       const travelMin=Math.round(km/SPEED_KMH*60);
-      m+=travelMin; h+=Math.floor(m/60); m=m%60;
-      if(hasGPS||i>0) eta=`${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      totalMin+=travelMin;
+      if(hasGPS||i>0) result=mkResult();
     } else if(i>0){
-      eta=`${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      result=mkResult();
     }
     cur=f;
-    m+=STOP_MIN; h+=Math.floor(m/60); m=m%60;
-    return eta;
+    totalMin+=STOP_MIN;
+    return result;
   });
 }
 
@@ -1158,11 +1166,11 @@ function renderRoute(route){
   route.forEach(f=>{const g=sets[f.n];if(g&&!seen.has(g)){seen.add(g);groupLabels[g]=`セット${++gi}`}});
 
   const closedOnes=route.filter(todayClosed);
-  const lateOnes=route.filter((f,i)=>etas[i]&&f.dl!=='free'&&toMin(etas[i])>toMin(f.dl));
+  const lateOnes=route.filter((f,i)=>etas[i]&&f.dl!=='free'&&(etas[i].overflow||toMin(etas[i].tod)>toMin(f.dl)));
   const alertBox=document.getElementById('alertBox');
   const msgs=[];
   if(closedOnes.length) msgs.push(`<strong>⚠ 本日休診の施設がルートに含まれています：</strong><br>${closedOnes.map(f=>f.n).join('、')}`);
-  if(lateOnes.length) msgs.push(`<strong>⏰ 締切時間に間に合わない可能性があります：</strong><br>${lateOnes.map(f=>`${f.n}（締切${dlBadgeText(f.dl)} / 到着予想${etas[route.indexOf(f)]}）`).join('、')}`);
+  if(lateOnes.length) msgs.push(`<strong>⏰ 締切時間に間に合わない可能性があります：</strong><br>${lateOnes.map(f=>`${f.n}（締切${dlBadgeText(f.dl)} / 到着予想${etas[route.indexOf(f)].text}）`).join('、')}`);
   if(msgs.length){
     alertBox.innerHTML=msgs.join('<br><br>');
     alertBox.style.display='block';
@@ -1178,11 +1186,11 @@ function renderRoute(route){
     const g=sets[f.n];
     const setTag=g?`<span class="set-tag">🔗 ${groupLabels[g]}</span>`:'';
     const closedTag=todayClosed(f)?`<span class="badge b-closed">本日休診</span>`:'';
-    const lateTag=(etas[i]&&f.dl!=='free'&&toMin(etas[i])>toMin(f.dl))?`<span class="badge b-closed">⏰ 締切超過の恐れ</span>`:'';
+    const lateTag=(etas[i]&&f.dl!=='free'&&(etas[i].overflow||toMin(etas[i].tod)>toMin(f.dl)))?`<span class="badge b-closed">⏰ 締切超過の恐れ</span>`:'';
     const noteTag=f.cn?`<span class="badge b-warn">⚠ ${f.cn}</span>`:'';
     const dist=i>0?`<span class="dist-tag">前から約${distKm(route[i-1],f).toFixed(1)}km</span>`:'';
     const isFirst=i===0, isLast=i===route.length-1;
-    const etaTag=etas[i]?`<span style="font-size:12px;color:#1a6fb5;font-weight:700;margin-left:6px">🕐 ${etas[i]}着</span>`:'';
+    const etaTag=etas[i]?`<span style="font-size:12px;color:#1a6fb5;font-weight:700;margin-left:6px">🕐 ${etas[i].text}着</span>`:'';
     return `<li class="route-item" id="ri_${i}">
       <div class="rnum${isFree?' free':''}">${i+1}</div>
       <div class="rinfo">
