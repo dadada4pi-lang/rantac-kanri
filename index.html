@@ -1671,8 +1671,6 @@ function renderRepMissingDays() {
   const box = document.getElementById('repMissingDaysBox');
   if (!box || !currentUser) return;
   const period = getCurrentPeriod();
-  const attArr = JSON.parse(localStorage.getItem('att_' + currentUser) || '[]');
-  const attDates = new Set(attArr.map(r => r.date));
   const repArr = JSON.parse(localStorage.getItem('rep_' + currentUser) || '[]');
   const repDates = new Set(repArr.map(r => r.date));
   const today = new Date().toISOString().slice(0, 10);
@@ -1681,12 +1679,12 @@ function renderRepMissingDays() {
   const end = new Date(Math.min(new Date(today).getTime(), new Date(period.end + 'T00:00:00').getTime()));
   while (d <= end) {
     const ds = d.toISOString().slice(0, 10);
-    if (attDates.has(ds) && !repDates.has(ds) && ds !== today) days.push(ds);
+    if (isBusinessDay(ds) && !repDates.has(ds) && ds !== today) days.push(ds);
     d.setDate(d.getDate() + 1);
   }
   if (!days.length) { box.innerHTML = ''; return; }
   box.innerHTML = `<div style="background:#fff3cd;border-radius:10px;padding:12px;margin-top:8px">
-    <div style="font-size:13px;font-weight:700;color:#856404;margin-bottom:6px">⚠ 報告書が未入力の勤務日</div>
+    <div style="font-size:13px;font-weight:700;color:#856404;margin-bottom:6px">⚠ 報告書が未入力の営業日</div>
     ${days.map(ds => {
       const d2 = new Date(ds + 'T00:00:00');
       return `<div style="font-size:13px;color:#6d4c41;padding:2px 0">${ds.slice(5).replace('-','/')}（${DAYS[d2.getDay()]}）</div>`;
