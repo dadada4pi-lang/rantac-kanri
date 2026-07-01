@@ -538,40 +538,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
 <div id="salesReportScreen" class="screen">
   <div class="topbar">
     <button class="back-btn" onclick="goTo('homeScreen')">←</button>
-    <span>営業報告書</span>
+    <span>報告書</span>
     <img src="logo.png" class="topbar-logo" alt="RANTAC">
   </div>
-  <div class="card">
-    <div class="att-section">
+  <div style="padding:0 12px" id="repMissingDaysBox"></div>
+  <div class="card" style="margin-bottom:8px">
+    <div class="att-section" style="margin-bottom:0">
       <div class="att-label">訪問日</div>
       <input id="srDate" class="att-input" type="date">
     </div>
-    <div class="att-section">
-      <div class="att-label">訪問時間</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input id="srTime" class="att-input" type="time" style="flex:1">
-        <button onclick="setNow('srTime')" style="white-space:nowrap;padding:8px 12px;border:1.5px solid var(--blue);border-radius:8px;background:#fff;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer">現在時刻</button>
-      </div>
-    </div>
-    <div class="att-section">
-      <div class="att-label">訪問先</div>
-      <input id="srFacility" class="att-input" type="text" placeholder="例：○○病院">
-    </div>
-    <div class="att-section">
-      <div class="att-label">訪問内容</div>
-      <input id="srContent" class="att-input" type="text" placeholder="例：定期訪問、見積もり提出">
-    </div>
-    <div class="att-section">
-      <div class="att-label">特記事項</div>
-      <textarea id="srNotes" class="att-input" rows="3" placeholder="特記事項があれば" style="resize:none"></textarea>
-    </div>
-    <div class="att-section" id="srDeviceSection">
-      <div class="att-label">医療機器</div>
-      <textarea id="srDevice" class="att-input" rows="3" placeholder="医療機器について" style="resize:none"></textarea>
-    </div>
-    <button class="btn-submit" onclick="submitSalesReport()">送信する</button>
-    <div id="srStatus" style="text-align:center;font-size:13px;margin-top:10px"></div>
   </div>
+  <div id="srRowsContainer" style="margin:0 12px"></div>
+  <div style="margin:0 12px 10px">
+    <button onclick="srAddRow()" style="width:100%;padding:12px;border:2px dashed var(--blue);border-radius:10px;background:#f0f6ff;color:var(--blue);font-size:14px;font-weight:700;cursor:pointer">＋ 訪問先を追加する</button>
+  </div>
+  <div style="margin:0 12px;display:flex;gap:8px">
+    <button onclick="srSaveDraft()" style="flex:1;padding:14px;border:1.5px solid #aaa;border-radius:10px;background:#fff;color:#555;font-size:14px;font-weight:700;cursor:pointer">途中保存</button>
+    <button class="btn-submit" style="flex:2" onclick="submitSalesReport()">まとめて送信する</button>
+  </div>
+  <div id="srStatus" style="text-align:center;font-size:13px;margin:10px 12px 24px"></div>
 </div>
 
 <!-- ===== REPORT ===== -->
@@ -1374,6 +1359,7 @@ function applyOcrAndRoute(){
 // ===== GAS / USER =====
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwWDPpIrP9T0mssl7i2AIMoAX5nsu5g0HbI5JrfLajluVn2gYSFx-2HYrbEzxm2FgcR1g/exec';
 let currentUser = localStorage.getItem('currentUser') || null;
+let srRows = [];
 
 const USER_NAMES = { kishi:'岸さん', miyakawa:'宮川さん', yamada:'山田さん', imura:'井村さん', goto:'後藤さん', sato:'佐藤さん', tajima:'田嶋さん', horiuchi:'堀内さん' };
 const USER_SHEETS = {
@@ -1572,47 +1558,173 @@ function renderMissingDays(){
   </div>`;
 }
 
+function srBlankRow() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  return { visitTime: `${h}:${m}`, facility: '', content: '', notes: '', device: '' };
+}
+
+function srSyncRows() {
+  srRows = srRows.map((_, i) => ({
+    visitTime: document.getElementById(`srTime_${i}`)?.value || '',
+    facility:  document.getElementById(`srFacility_${i}`)?.value || '',
+    content:   document.getElementById(`srContent_${i}`)?.value || '',
+    notes:     document.getElementById(`srNotes_${i}`)?.value || '',
+    device:    document.getElementById(`srDevice_${i}`)?.value || '',
+  }));
+}
+
+function renderSrRows() {
+  const delivery = isDelivery();
+  document.getElementById('srRowsContainer').innerHTML = srRows.map((r, i) => `
+    <div class="card" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--blue)">訪問 ${i+1}件目</div>
+        ${srRows.length > 1 ? `<button onclick="srRemoveRow(${i})" style="background:none;border:none;font-size:22px;color:#ccc;cursor:pointer;line-height:1">×</button>` : ''}
+      </div>
+      <div class="att-section">
+        <div class="att-label">訪問時間</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="srTime_${i}" class="att-input" type="time" value="${r.visitTime}" style="flex:1">
+          <button onclick="setNowSr(${i})" style="white-space:nowrap;padding:8px 12px;border:1.5px solid var(--blue);border-radius:8px;background:#fff;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer">現在時刻</button>
+        </div>
+      </div>
+      <div class="att-section">
+        <div class="att-label">訪問先</div>
+        <input id="srFacility_${i}" class="att-input" type="text" placeholder="例：○○病院" value="${r.facility.replace(/"/g,'&quot;')}">
+      </div>
+      <div class="att-section">
+        <div class="att-label">訪問内容</div>
+        <input id="srContent_${i}" class="att-input" type="text" placeholder="例：定期訪問、見積もり提出" value="${r.content.replace(/"/g,'&quot;')}">
+      </div>
+      <div class="att-section">
+        <div class="att-label">特記事項</div>
+        <textarea id="srNotes_${i}" class="att-input" rows="2" placeholder="特記事項があれば" style="resize:none">${r.notes}</textarea>
+      </div>
+      ${!delivery ? `<div class="att-section">
+        <div class="att-label">医療機器</div>
+        <textarea id="srDevice_${i}" class="att-input" rows="2" placeholder="医療機器について" style="resize:none">${r.device}</textarea>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+function setNowSr(i) {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(Math.floor(now.getMinutes() / 10) * 10).padStart(2,'0');
+  const el = document.getElementById(`srTime_${i}`);
+  if (el) el.value = `${h}:${m}`;
+}
+
+function srAddRow() {
+  srSyncRows();
+  srRows.push(srBlankRow());
+  renderSrRows();
+  setTimeout(() => {
+    const c = document.getElementById('srRowsContainer');
+    c.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 80);
+}
+
+function srRemoveRow(i) {
+  srSyncRows();
+  srRows.splice(i, 1);
+  if (!srRows.length) srRows.push(srBlankRow());
+  renderSrRows();
+}
+
+function srSaveDraft() {
+  if (!currentUser) return;
+  srSyncRows();
+  const date = document.getElementById('srDate').value;
+  localStorage.setItem('rep_draft_' + currentUser, JSON.stringify({ date, rows: srRows }));
+  const status = document.getElementById('srStatus');
+  status.textContent = '✅ 途中保存しました';
+  status.style.color = '#43a047';
+}
+
 function openReport() {
+  if (!currentUser) { alert('担当者を選択してください'); return; }
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
   document.getElementById('srDate').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-  document.getElementById('srTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  document.getElementById('srFacility').value = '';
-  document.getElementById('srContent').value = '';
-  document.getElementById('srNotes').value = '';
-  document.getElementById('srDevice').value = '';
   document.getElementById('srStatus').textContent = '';
-  document.getElementById('srDeviceSection').style.display = isDelivery() ? 'none' : '';
+  const draft = JSON.parse(localStorage.getItem('rep_draft_' + currentUser) || 'null');
+  if (draft && draft.rows && draft.rows.length) {
+    if (confirm('途中保存したデータがあります。続きから入力しますか？')) {
+      srRows = draft.rows;
+      if (draft.date) document.getElementById('srDate').value = draft.date;
+    } else {
+      localStorage.removeItem('rep_draft_' + currentUser);
+      srRows = [srBlankRow()];
+    }
+  } else {
+    srRows = [srBlankRow()];
+  }
+  renderSrRows();
+  renderRepMissingDays();
   goTo('salesReportScreen');
+}
+
+function renderRepMissingDays() {
+  const box = document.getElementById('repMissingDaysBox');
+  if (!box || !currentUser) return;
+  const period = getCurrentPeriod();
+  const attArr = JSON.parse(localStorage.getItem('att_' + currentUser) || '[]');
+  const attDates = new Set(attArr.map(r => r.date));
+  const repArr = JSON.parse(localStorage.getItem('rep_' + currentUser) || '[]');
+  const repDates = new Set(repArr.map(r => r.date));
+  const today = new Date().toISOString().slice(0, 10);
+  const days = [];
+  let d = new Date(period.start + 'T00:00:00');
+  const end = new Date(Math.min(new Date(today).getTime(), new Date(period.end + 'T00:00:00').getTime()));
+  while (d <= end) {
+    const ds = d.toISOString().slice(0, 10);
+    if (attDates.has(ds) && !repDates.has(ds) && ds !== today) days.push(ds);
+    d.setDate(d.getDate() + 1);
+  }
+  if (!days.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div style="background:#fff3cd;border-radius:10px;padding:12px;margin-top:8px">
+    <div style="font-size:13px;font-weight:700;color:#856404;margin-bottom:6px">⚠ 報告書が未入力の勤務日</div>
+    ${days.map(ds => {
+      const d2 = new Date(ds + 'T00:00:00');
+      return `<div style="font-size:13px;color:#6d4c41;padding:2px 0">${ds.slice(5).replace('-','/')}（${DAYS[d2.getDay()]}）</div>`;
+    }).join('')}
+  </div>`;
 }
 
 function submitSalesReport() {
   if (!currentUser) { alert('担当者を選択してください'); return; }
+  srSyncRows();
   const date = document.getElementById('srDate').value;
-  const time = document.getElementById('srTime').value;
-  const facility = document.getElementById('srFacility').value;
-  const content = document.getElementById('srContent').value;
-  const notes = document.getElementById('srNotes').value;
-  const device = document.getElementById('srDevice').value;
-  if (!date || !facility) { alert('訪問日と訪問先を入力してください'); return; }
+  if (!date) { alert('訪問日を入力してください'); return; }
+  const validRows = srRows.filter(r => r.facility.trim());
+  if (!validRows.length) { alert('訪問先を1件以上入力してください'); return; }
   const status = document.getElementById('srStatus');
   status.textContent = '送信中...';
   status.style.color = '#888';
   const repType = isDelivery() ? 'delivery_rep' : 'sales_rep';
-  const paramObj = isDelivery()
-    ? { date, visitTime: time, facility, content, notes }
-    : { date, visitTime: time, facility, content, notes, device };
-  const params = new URLSearchParams(paramObj);
+  const key = 'rep_' + currentUser;
+  const arr = JSON.parse(localStorage.getItem(key) || '[]');
+  validRows.forEach(r => arr.push({ date, visitTime: r.visitTime, facility: r.facility, content: r.content, notes: r.notes, device: r.device }));
+  localStorage.setItem(key, JSON.stringify(arr));
+  const gasRows = validRows.map(r => ({ facility: r.facility, visitTime: r.visitTime, requirement: r.content, notes: r.notes, ...(isDelivery() ? {} : { device: r.device }) }));
+  const params = new URLSearchParams({ date, rows: JSON.stringify(gasRows) });
   fetch(GAS_URL + '?' + params.toString() + '&type=' + repType + '&user=' + currentUser, { mode: 'no-cors' })
     .then(() => {
       status.textContent = '✅ 送信しました';
       status.style.color = '#43a047';
-      document.getElementById('srFacility').value = '';
-      document.getElementById('srContent').value = '';
-      document.getElementById('srNotes').value = '';
-      document.getElementById('srDevice').value = '';
+      localStorage.removeItem('rep_draft_' + currentUser);
+      srRows = [srBlankRow()];
+      renderSrRows();
+      renderRepMissingDays();
     })
-    .catch(() => { status.textContent = '✅ 保存しました（オフライン）'; status.style.color = '#43a047'; });
+    .catch(() => {
+      status.textContent = '✅ 保存しました（オフライン）';
+      status.style.color = '#43a047';
+      localStorage.removeItem('rep_draft_' + currentUser);
+    });
 }
 
 function renderReport() {
